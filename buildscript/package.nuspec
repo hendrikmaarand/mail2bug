@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>Mail2Bug</id>
+    <version>0.0.0</version>
+    <authors>Guy Hershenbaum; AWS Team</authors>
+    <description>Mail2Bug with Skype specific additions.</description>
+	<projectUrl>https://github.com/Microsoft/mail2bug</projectUrl>
+  </metadata>
+</package>
