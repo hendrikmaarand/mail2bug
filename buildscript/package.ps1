@@ -11,7 +11,7 @@ ls $PSScriptRoot
  
 Copy-Item $($PSScriptRoot + "\package.nuspec") $nugetDir 
 
-write-output "after copy"
+write-output "after copy: $nugetDir"
 ls $nugetDir
 
 $newVersion = GetVersionByReason
