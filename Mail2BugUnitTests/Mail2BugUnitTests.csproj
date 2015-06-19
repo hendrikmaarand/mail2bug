@@ -43,9 +43,11 @@
     <Reference Include="System" />
     <Reference Include="TestApiCore">
       <HintPath>..\packages\Microsoft.TestApi.0.6.0.0\lib\net40\TestApiCore.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="TestApiWpf">
       <HintPath>..\packages\Microsoft.TestApi.0.6.0.0\lib\net40\TestApiWpf.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <Choose>
