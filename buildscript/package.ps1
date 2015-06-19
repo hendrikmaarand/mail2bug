@@ -8,7 +8,8 @@ write-output "nugetdir: $nugetDir"
 
 write-output "list"
 ls $PSScriptRoot
- 
+
+New-Item -ItemType directory -Path $nugetDir
 Copy-Item $($PSScriptRoot + "\package.nuspec") $nugetDir 
 
 write-output "after copy: $nugetDir"
