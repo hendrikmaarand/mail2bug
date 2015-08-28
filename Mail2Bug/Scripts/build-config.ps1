@@ -26,7 +26,7 @@ try {
     write "build"
     write ""
     
-    $cmd = "$generate -configuration $instance"
+    $cmd = ".\$generate -configuration $instance"
     iex "& $cmd"
     write ""
 }
@@ -43,7 +43,7 @@ finally {
 # delete existing configuration"
 if(Test-Path "$deployFolder/$generatedFolder") {
     write "delete deployed conf: $deployFolder/$generatedFolder"    
-    rm "$deployFolder/$generatedFolder"
+    rm -Recurse "$deployFolder/$generatedFolder"
 }
 
 write "copy"
