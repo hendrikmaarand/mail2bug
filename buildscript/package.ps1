@@ -13,7 +13,7 @@ Copy-Item $($binaryPath + "\*.dll") $mail2BugDir
 Copy-Item $($binaryPath + "\*.config") $mail2BugDir
 Copy-Item $($binaryPath + "\Mail2Bug.exe") $mail2BugDir
 Copy-Item $($binaryPath + "\DpapiTool.exe") $mail2BugDir
-Copy-Item $($binaryPath + "Scripts\build-config.ps1") $mail2BugDir
+Copy-Item $($binaryPath + "\Scripts\build-config.ps1") $mail2BugDir
 
 $newVersion = GetVersionByReason
 & 'c:\tools\nuget\nuget.exe' pack $($nugetDir + "\package.nuspec") -Version "$newVersion" -OutputDirectory $nugetDir
