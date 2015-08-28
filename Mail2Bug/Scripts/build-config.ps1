@@ -4,11 +4,10 @@ param(
     [string]$instance = "skype.txt",
     [string]$generate = "generate.ps1",
     [string]$generatedFolder = "Resources",
-    [string]$deployFolder = "/Users/v-hemaar/Desktop"
+    [string]$deployFolder = "."
 )
 
-
-$tmpConfDirectory = "tmp-conf-directory"
+$tmpConfDirectory = "tmp-conf-directory-git"
 
 
 # remove old conf stuff
@@ -49,7 +48,7 @@ if(Test-Path "$deployFolder/$generatedFolder") {
 
 write "copy"
 # copy the configurations 
-cp "$tmpConfDirectory/$generatedFolder" "$deployFolder"
+cp "$tmpConfDirectory/$generatedFolder" "$deployFolder" -Recurse
 
 
 
