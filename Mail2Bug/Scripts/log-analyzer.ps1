@@ -7,7 +7,7 @@ param(
 $log_file_timestap = Get-Date -Format "yyyy-MM-dd"
 $timestamp = Get-Date
 $timestamp = $timestamp.AddMinutes(-$minutesToLookBack)
-$timestamp = Get-Date -Format "yyyy-MM-dd hh:mm" $timestamp
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm" $timestamp
 
 
 $filename = "$pathToLogs\$log_file_timestap.log"
@@ -82,5 +82,6 @@ if(-not $processing -or $errors) {
     exit 2
 } 
 else {
+    Write-Host 'Logs are OK'
     exit 0
 }
