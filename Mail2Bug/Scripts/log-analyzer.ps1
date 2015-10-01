@@ -16,7 +16,7 @@ $pattern = "^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}),[0-9]{3} \[
 $stack_pattern = "^\s{3}at\s.*"
 
 $processing_pattern = "*Reading messages from inbox*"
-$error_pattern = "*ERROR*"
+$error_pattern = "^ERROR (.*)"
 
 
 $processing = $false
@@ -52,18 +52,18 @@ for($i; $i -le $count; $i++) {
                 $processing = $true
             }
 
-            if($text -like $error_pattern) {
+            if($text -match $error_pattern) {
                 $errors = $true
                 write $line
-            }            
+            }
         }
         else {
             # log date should not be less than the timestamp; something odd here
         }        
     }
-	elseif(-not $line) {
-		# ignore
-	}
+    elseif(-not $line) {
+      # ignore
+    }
     else {
         # if the line does not match the pattern then it is probably stack trace or something
         $errors = $true
