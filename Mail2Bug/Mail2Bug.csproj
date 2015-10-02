@@ -141,7 +141,7 @@
     <None Include="App.config">
       <SubType>Designer</SubType>
     </None>
-    <None Include="Scripts\build-config.ps1">
+    <None Include="Scripts\build-config.ps1"> 
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
 	<None Include="Scripts\log-analyzer.ps1">
