@@ -63,7 +63,7 @@
       <SpecificVersion>False</SpecificVersion>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Microsoft.VisualStudio.Services.Common, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" >
+    <Reference Include="Microsoft.VisualStudio.Services.Common, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <Private>True</Private>
     </Reference>
@@ -140,6 +140,12 @@
   <ItemGroup>
     <None Include="App.config">
       <SubType>Designer</SubType>
+    </None>
+    <None Include="Scripts\build-config.ps1">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+	<None Include="Scripts\log-analyzer.ps1">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="log4net.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
