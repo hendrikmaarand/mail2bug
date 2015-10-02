@@ -2,14 +2,16 @@
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using log4net;
 using Mail2Bug.Email;
+using Mail2Bug.Helpers;
 using Mail2Bug.WorkItemManagement;
 
 namespace Mail2Bug.MessageProcessingStrategies
 {
-    public class SimpleBugStrategy : IMessageProcessingStrategy
+    public class SimpleBugStrategy : IMessageProcessingStrategy, IDisposable
     {
         private const int TfsTextFieldMaxLength = 255;
         private readonly Config.InstanceConfig _config;
@@ -55,13 +57,13 @@ namespace Mail2Bug.MessageProcessingStrategies
             try
             {
                 // Since the work item *has* been created, failures in this stage are not treated as critical
-                TryApplyFieldOverrides(message, workItemId);
+                var overrides = new OverridesExtractor(_config).GetOverrides(message);
+                TryApplyFieldOverrides(overrides, workItemId);
                 ProcessAttachments(message, workItemId);
                 
                 if (_config.WorkItemSettings.AttachOriginalMessage)
                 {
-                    string originalMessageFile = message.SaveToFile();
-                    _workItemManager.AttachFiles(workItemId, new List<string> {originalMessageFile} );
+                    AttachMessageToWorkItem(message, workItemId, "OriginalMessage");
                 }
             }
             catch (Exception ex)
@@ -69,6 +71,22 @@ namespace Mail2Bug.MessageProcessingStrategies
                 Logger.ErrorFormat("Exception caught while applying settings to work item {0}\n{1}", workItemId, ex);
             }
             _ackEmailHandler.SendAckEmail(message, workItemId.ToString(CultureInfo.InvariantCulture));
+        }
+
+        private void AttachMessageToWorkItem(IIncomingEmailMessage message, int workItemId, string prefix)
+        {
+            using (var tfc = new TempFileCollection())
+            {
+                var fileName = string.Format("{0}_{1}_{2}.eml", prefix, DateTime.Now.ToString("yyyyMMdd_hhmmss"), new Random().Next());
+                var filePath = Path.Combine(Path.GetTempPath(), fileName);
+                
+                message.SaveToFile(filePath);
+
+                // Remove the file once we're done attaching it
+                tfc.AddFile(filePath, false);
+
+                _workItemManager.AttachFiles(workItemId, new List<string> { filePath });
+            }
         }
 
         private void InitWorkItemFields(IIncomingEmailMessage message, Dictionary<string, string> workItemUpdates)
@@ -86,10 +104,8 @@ namespace Mail2Bug.MessageProcessingStrategies
     		}
     	}
 
-        private void TryApplyFieldOverrides(IIncomingEmailMessage message, int workItemId)
+        private void TryApplyFieldOverrides(Dictionary<string, string> overrides, int workItemId)
         {
-            var overrides = new OverridesExtractor(message, _config).GetOverrides();
-
             if (overrides.Count == 0)
             {
                 Logger.DebugFormat("No overrides found. Skipping applying overrides.");
@@ -113,12 +129,32 @@ namespace Mail2Bug.MessageProcessingStrategies
             Logger.InfoFormat("Modifying work item {0} subject: {1}", workItemId, message.Subject);
 
             var resolver = new SpecialValueResolver(message, _workItemManager.GetNameResolver());
-            var workItemUpdates = new Dictionary<string, string> { { "Changed By", resolver.Sender } };
+            var workItemUpdates = new Dictionary<string, string>();
+
+            if (_config.WorkItemSettings.OverrideChangedBy)
+            {
+                workItemUpdates["Changed By"] = resolver.Sender;
+            }
+
+            if (_config.WorkItemSettings.ApplyOverridesDuringUpdate)
+            {
+                var extractor = new OverridesExtractor(_config);
+                var overrides = extractor.GetOverrides(message.GetLastMessageText());
+
+                Logger.DebugFormat("Found {0} overrides for update message", overrides.Count);
+
+                overrides.ToList().ForEach(x => workItemUpdates[x.Key] = x.Value);
+            }
 
             // Construct the text to be appended
             _workItemManager.ModifyWorkItem(workItemId, message.GetLastMessageText(), workItemUpdates);
 
             ProcessAttachments(message, workItemId);
+
+            if (_config.WorkItemSettings.AttachUpdateMessages)
+            {
+                AttachMessageToWorkItem(message, workItemId, "ReplyMessage");
+            }
         }
 
         private void ProcessAttachments(IIncomingEmailMessage message, int workItemId)
@@ -150,5 +186,10 @@ namespace Mail2Bug.MessageProcessingStrategies
         }
 
         private static readonly ILog Logger = LogManager.GetLogger(typeof(SimpleBugStrategy));
+
+        public void Dispose()
+        {
+            DisposeUtils.DisposeIfDisposable(_workItemManager);
+        }
     }
 }

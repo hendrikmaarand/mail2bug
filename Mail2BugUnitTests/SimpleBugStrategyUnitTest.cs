@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using log4net;
 using Mail2Bug;
-using Mail2Bug.Email.Mocks;
 using Mail2Bug.Helpers;
 using Mail2Bug.MessageProcessingStrategies;
 using Mail2Bug.TestHelpers;
 using Mail2Bug.WorkItemManagement;
+using Mail2BugUnitTests.Mocks.Email;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Mail2BugUnitTests
@@ -84,7 +84,7 @@ namespace Mail2BugUnitTests
             ValidateBugValue(bugValues, nowField, DateTime.Now.ToString("g"));
             ValidateBugValue(bugValues, todayField, DateTime.Now.ToString("d"));
             ValidateBugValue(bugValues, messageBodyField, message.PlainTextBody);
-            ValidateBugValue(bugValues, messageBodyWithSenderField, String.Format("{0}\nCreated by: {1}({2})", message.PlainTextBody, message.SenderName, message.SenderAddress));
+            ValidateBugValue(bugValues, messageBodyWithSenderField, String.Format("{0}\n\nCreated by: {1} ({2})", message.PlainTextBody, message.SenderName, message.SenderAddress));
             ValidateBugValue(bugValues, senderField, message.SenderName);
             ValidateBugValue(bugValues, subjectField, message.ConversationTopic);
         }
@@ -96,7 +96,7 @@ namespace Mail2BugUnitTests
         }
 
         [TestMethod]
-        public void TestMenmonics()
+        public void TestMnemonics()
         {
             var seed = _rand.Next();
 
@@ -162,7 +162,18 @@ namespace Mail2BugUnitTests
         }
 
         [TestMethod]
-        public void TestProcessingThread()
+        public void TestProcessingEmailThreadOverrideChangedBy()
+        {
+            TestProcessingEmailThreadImpl(true);
+        }
+
+        [TestMethod]
+        public void TestProcessingEmailThreadDontOverrideChangedBy()
+        {
+            TestProcessingEmailThreadImpl(false);
+        }
+
+        public void TestProcessingEmailThreadImpl(bool overrideChangedBy)
         {
             var seed = _rand.Next();
 
@@ -174,6 +185,92 @@ namespace Mail2BugUnitTests
             var message3 = mailManager.AddReply(message2, RandomDataHelper.GetBody(seed));
 
             var instanceConfig = GetConfig().Instances.First();
+            instanceConfig.WorkItemSettings.OverrideChangedBy = overrideChangedBy;
+
+            var workItemManagerMock = new WorkItemManagerMock(instanceConfig.WorkItemSettings.ConversationIndexFieldName);
+            ProcessMailbox(mailManager, instanceConfig, workItemManagerMock);
+
+            Assert.AreEqual(1, workItemManagerMock.Bugs.Count, "Only one bug should exist");
+            var bug = workItemManagerMock.Bugs.First();
+            var bugFields = bug.Value;
+
+            var expectedValues = new Dictionary<string,string>();
+            instanceConfig.WorkItemSettings.DefaultFieldValues.ForEach(x=> expectedValues[x.Field] = x.Value);
+
+            if (overrideChangedBy)
+            {
+                expectedValues["Changed By"] = message3.SenderName;
+            }
+            expectedValues[WorkItemManagerMock.HistoryField] = TextUtils.FixLineBreaks(message2.GetLastMessageText() + message3.GetLastMessageText());
+
+            ValidateBugValues(expectedValues, bugFields);
+        }
+
+        [TestMethod]
+        public void TestApplyingOverridesInUpdateMessage()
+        {
+            var seed = _rand.Next();
+
+            Logger.InfoFormat("Using seed {0}", seed);
+
+            var mailManager = new MailManagerMock();
+            var message1 = mailManager.AddMessage(false);
+
+            var mnemonicDef = new Config.MnemonicDefinition { Mnemonic = "myMnemonic", Field = "Mnemonic Field", Value = "Mnemonic Value" };
+            var mnemonicLine = string.Format("\n@@@{0}\n", mnemonicDef.Mnemonic);
+
+            var explicitOverride1 = new KeyValuePair<string, string>("IsThisExplicit?","Indeed");
+            var explicitLine1 = string.Format("\n###{0}:{1}\n", explicitOverride1.Key, explicitOverride1.Value);
+
+            var explicitOverride2 = new KeyValuePair<string, string>("WillThisOneBeProcessed?","No");
+            var explicitLine2 = string.Format("\n###{0}:{1}\n", explicitOverride2.Key, explicitOverride2.Value);
+
+            var message2 = mailManager.AddReply(message1, mnemonicLine + RandomDataHelper.GetBody(seed));
+            var message3 = mailManager.AddReply(message2, RandomDataHelper.GetBody(seed) + explicitLine1);
+
+            // This last override will not be considered, because it's not part of the last message (it's at the
+            // end of the message text, so considered as part of the first message)
+            var message4 = mailManager.AddReply(message3, RandomDataHelper.GetBody(seed));
+            message4.PlainTextBody += explicitLine2;
+
+            var instanceConfig = GetConfig().Instances.First();
+            instanceConfig.WorkItemSettings.ApplyOverridesDuringUpdate = true;
+            instanceConfig.WorkItemSettings.Mnemonics.Add(mnemonicDef);
+
+            var workItemManagerMock = new WorkItemManagerMock(instanceConfig.WorkItemSettings.ConversationIndexFieldName);
+            ProcessMailbox(mailManager, instanceConfig, workItemManagerMock);
+
+            Assert.AreEqual(1, workItemManagerMock.Bugs.Count, "Only one bug should exist");
+            var bug = workItemManagerMock.Bugs.First();
+            var bugFields = bug.Value;
+
+            var expectedValues = new Dictionary<string,string>();
+            instanceConfig.WorkItemSettings.DefaultFieldValues.ForEach(x=> expectedValues[x.Field] = x.Value);
+
+            expectedValues["Changed By"] = message4.SenderName;
+            expectedValues[WorkItemManagerMock.HistoryField] = 
+                TextUtils.FixLineBreaks(message2.GetLastMessageText() + message3.GetLastMessageText() + message4.GetLastMessageText());
+            expectedValues[mnemonicDef.Field] = mnemonicDef.Value;
+            expectedValues[explicitOverride1.Key] = explicitOverride1.Value;
+
+            ValidateBugValues(expectedValues, bugFields);
+            Assert.IsFalse(bugFields.ContainsKey(explicitOverride2.Key));
+        }
+
+        [TestMethod]
+        public void TestAttachingUpdateMessages()
+        {
+            var seed = _rand.Next();
+
+            Logger.InfoFormat("Using seed {0}", seed);
+
+            var mailManager = new MailManagerMock();
+            var message1 = mailManager.AddMessage(false);
+            var message2 = mailManager.AddReply(message1, "message 1");
+            var message3 = mailManager.AddReply(message2, "message 2");
+
+            var instanceConfig = GetConfig().Instances.First();
+            instanceConfig.WorkItemSettings.AttachUpdateMessages = true;
 
             var workItemManagerMock = new WorkItemManagerMock(instanceConfig.WorkItemSettings.ConversationIndexFieldName);
             ProcessMailbox(mailManager, instanceConfig, workItemManagerMock);
@@ -186,9 +283,13 @@ namespace Mail2BugUnitTests
             instanceConfig.WorkItemSettings.DefaultFieldValues.ForEach(x=> expectedValues[x.Field] = x.Value);
 
             expectedValues["Changed By"] = message3.SenderName;
-            expectedValues[WorkItemManagerMock.HistoryField] = TextUtils.FixLineBreaks(message2.GetLastMessageText() + message3.GetLastMessageText());
+            expectedValues[WorkItemManagerMock.HistoryField] = 
+                TextUtils.FixLineBreaks(message2.GetLastMessageText() + message3.GetLastMessageText());
 
             ValidateBugValues(expectedValues, bugFields);
+
+            Assert.IsTrue(workItemManagerMock.Attachments.ContainsKey(bug.Key));
+            Assert.AreEqual(workItemManagerMock.Attachments[bug.Key].Count, 3);
         }
 
         [TestMethod]

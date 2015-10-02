@@ -39,7 +39,7 @@ namespace Mail2Bug.Email.EWS
 
         public string Subject { get { return _message.Subject; } }
         public string ConversationTopic { get { return _message.ConversationTopic; } }
-        public string RawBody { get { return _message.Body.Text; } }
+        public string RawBody { get { return _message.Body.Text ?? string.Empty; } }
         public string PlainTextBody { get { return GetPlainTextBody(_message); } }
 
         public string ConversationIndex
@@ -50,9 +50,12 @@ namespace Mail2Bug.Email.EWS
         public string SenderName { get { return _message.Sender.Name; } }
         public string SenderAlias { get { return GetAliasFromEmailAddress(_message.Sender.Address); } }
         public string SenderAddress { get { return _message.Sender.Address; } }
-        public IEnumerable<string> To { get { return _message.ToRecipients.Select(x => x.Address); } }
-        public IEnumerable<string> Cc { get { return _message.CcRecipients.Select(x => x.Address); } }
+        public IEnumerable<string> ToAddresses { get { return _message.ToRecipients.Select(x => x.Address); } }
+        public IEnumerable<string> CcAddresses { get { return _message.CcRecipients.Select(x => x.Address); } }
+        public IEnumerable<string> ToNames { get { return _message.ToRecipients.Select(x => x.Name); } }
+        public IEnumerable<string> CcNames { get { return _message.CcRecipients.Select(x => x.Name); } }
         public DateTime SentOn { get { return _message.DateTimeSent; } }
+        public DateTime ReceivedOn { get { return _message.DateTimeReceived; } }
         public bool IsHtmlBody { get { return _message.Body.BodyType == BodyType.HTML; } }
 
         public string Location
@@ -126,9 +129,11 @@ namespace Mail2Bug.Email.EWS
 
         private static string GetPlainTextBody(Item message)
         {
-            return message.Body.BodyType == BodyType.Text ? 
-                message.Body.Text : 
-                EmailBodyProcessingUtils.ConvertHtmlMessageToPlainText(message.Body.Text);
+            // When there's no text whatsoever in the email, EWS may return null rather than an empty string. We normalize
+            // to empty string to avoid repeated null checks later on, since empty string represents the same meaning as null
+            // in our context.
+            var text = message.Body.Text ?? string.Empty;
+            return message.Body.BodyType == BodyType.Text ? text : EmailBodyProcessingUtils.ConvertHtmlMessageToPlainText(text);
         }
 
         private static IEnumerable<IIncomingEmailAttachment> BuildAttachmentList(Item message)

@@ -1,20 +1,21 @@
-using System.Net;
-using log4net;
-using Mail2Bug.ExceptionClasses;
-using Mail2Bug.Helpers;
-using Mail2Bug.MessageProcessingStrategies;
-using Microsoft.TeamFoundation.Client;
-using Microsoft.TeamFoundation.WorkItemTracking.Client;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
+using log4net;
+using Mail2Bug.ExceptionClasses;
+using Mail2Bug.Helpers;
+using Mail2Bug.MessageProcessingStrategies;
+using Microsoft.IdentityModel.Clients.ActiveDirectory;
+using Microsoft.TeamFoundation.Client;
+using Microsoft.TeamFoundation.WorkItemTracking.Client;
 
 namespace Mail2Bug.WorkItemManagement
 {
-    public class TFSWorkItemManager : IWorkItemManager
+    public class TFSWorkItemManager : IWorkItemManager, IDisposable
     {
         public SortedList<string, int> WorkItemsCache { get; private set; }
 
@@ -25,10 +26,10 @@ namespace Mail2Bug.WorkItemManagement
             _config = config;
 
             // Init TFS service objects
-            var tfsServer = ConnectToTfsCollection();
+            _tfsServer = ConnectToTfsCollection();
             Logger.InfoFormat("Connected to TFS. Getting TFS WorkItemStore");
 
-            _tfsStore = tfsServer.GetService<WorkItemStore>();
+            _tfsStore = _tfsServer.GetService<WorkItemStore>();
 
             if (_tfsStore == null)
             {
@@ -86,32 +87,77 @@ namespace Mail2Bug.WorkItemManagement
         private IEnumerable<TfsClientCredentials> GetTfsCredentials()
         {
             var credentials = new List<TfsClientCredentials>();
-            
-            if (!string.IsNullOrWhiteSpace(_config.TfsServerConfig.ServiceIdentityUsername)
-                && !string.IsNullOrWhiteSpace(_config.TfsServerConfig.ServiceIdentityPasswordFile)
-                && File.Exists(_config.TfsServerConfig.ServiceIdentityPasswordFile))
-            {
-                try
-                {
-                    var password = DPAPIHelper.ReadDataFromFile(_config.TfsServerConfig.ServiceIdentityPasswordFile);
 
-                    credentials.Add(
-                        new TfsClientCredentials(
-                            new SimpleWebTokenCredential(_config.TfsServerConfig.ServiceIdentityUsername, password)));
-                    credentials.Add(
-                        new TfsClientCredentials(
-                            new WindowsCredential(
-                                new NetworkCredential(_config.TfsServerConfig.ServiceIdentityUsername, password))));
-                }
-                catch (Exception e)
-                {
-                    throw new BadConfigException("ServiceIdentityUsername or ServiceIdentityPasswordFile", e.Message);
-                }
-            }
-            
+            credentials.AddRange(GetOAuthCredentials());
+            credentials.AddRange(GetServiceIdentityCredentials());
             credentials.Add(new TfsClientCredentials(true));
 
             return credentials;
+        }
+
+        private IEnumerable<TfsClientCredentials> GetOAuthCredentials()
+        {
+            try
+            {
+                var usernameAndPassword = GetUsernameAndPasswordFromConfig();
+
+                if (usernameAndPassword == null || 
+                    string.IsNullOrEmpty(_config.TfsServerConfig.OAuthClientId) ||
+                    string.IsNullOrEmpty(_config.TfsServerConfig.OAuthContext) ||
+                    string.IsNullOrEmpty(_config.TfsServerConfig.OAuthResourceId))
+                {
+                    return new List<TfsClientCredentials>();
+                }
+
+                var userCredential = new UserCredential(usernameAndPassword.Item1, usernameAndPassword.Item2);
+                var authContext = new AuthenticationContext(_config.TfsServerConfig.OAuthContext);
+                var result = authContext.AcquireToken(_config.TfsServerConfig.OAuthResourceId, _config.TfsServerConfig.OAuthClientId, userCredential);
+                var oauthToken = new OAuthTokenCredential(result.AccessToken);
+                return new List<TfsClientCredentials>()
+                {
+                    new TfsClientCredentials(oauthToken)
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.WarnFormat("Error trying to generate OAuth Token for TFS connection\n{0}", ex);
+                return new List<TfsClientCredentials>();
+            }
+        }
+
+        private IEnumerable<TfsClientCredentials> GetServiceIdentityCredentials()
+        {
+            var usernameAndPassword = GetUsernameAndPasswordFromConfig();
+            if (usernameAndPassword == null)
+            {
+                return new List<TfsClientCredentials>();
+            }
+
+            return new List<TfsClientCredentials>
+            {
+                new TfsClientCredentials(
+                    new SimpleWebTokenCredential(usernameAndPassword.Item1, usernameAndPassword.Item2)),
+                new TfsClientCredentials(
+                    new WindowsCredential(
+                        new NetworkCredential(usernameAndPassword.Item1, usernameAndPassword.Item2)))
+            };
+        }
+
+        private Tuple<string,string> GetUsernameAndPasswordFromConfig()
+        {
+            if (string.IsNullOrWhiteSpace(_config.TfsServerConfig.ServiceIdentityUsername)
+                || string.IsNullOrWhiteSpace(_config.TfsServerConfig.ServiceIdentityPasswordFile))
+            {
+                return null;
+            }
+
+            if (!File.Exists(_config.TfsServerConfig.ServiceIdentityPasswordFile))
+            {
+                throw new BadConfigException("ServiceIdentityPasswordFile", "Password file doesn't exist");
+            }
+
+            return new Tuple<string, string>(_config.TfsServerConfig.ServiceIdentityUsername, 
+                DPAPIHelper.ReadDataFromFile(_config.TfsServerConfig.ServiceIdentityPasswordFile));
         }
 
         public void AttachFiles(int workItemId, List<string> fileList)
@@ -343,6 +389,16 @@ namespace Mail2Bug.WorkItemManagement
             return relevantValues.FirstOrDefault();
         }
 
+        public void Dispose()
+        {
+            _tfsServer.Dispose();
+        }
+
+        ~TFSWorkItemManager()
+        {
+            Dispose();
+        }
+
         #region Config validation
 
         private static void ValidateConfig(Config.InstanceConfig config)
@@ -384,5 +440,6 @@ namespace Mail2Bug.WorkItemManagement
         private readonly Config.InstanceConfig _config;
 
         private static readonly ILog Logger = LogManager.GetLogger(typeof(TFSWorkItemManager));
+        private readonly TfsTeamProjectCollection _tfsServer;
     }
 }

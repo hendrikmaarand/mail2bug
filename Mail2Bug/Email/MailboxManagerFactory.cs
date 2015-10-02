@@ -12,29 +12,35 @@ namespace Mail2Bug.Email
     /// </summary>
     class MailboxManagerFactory
     {
-        public static IMailboxManager CreateMailboxManager(Config.EmailSettings emailSettings)
+        public MailboxManagerFactory(EWSConnectionManger connectionManger)
         {
-            var credentials = new EWSConnectionFactory.Credentials
+            _connectionManger = connectionManger;
+        }
+
+        public IMailboxManager CreateMailboxManager(Config.EmailSettings emailSettings)
+        {
+            var credentials = new EWSConnectionManger.Credentials
             {
                 EmailAddress = emailSettings.EWSMailboxAddress,
                 UserName = emailSettings.EWSUsername,
                 Password = DPAPIHelper.ReadDataFromFile(emailSettings.EWSPasswordFile)
             };
 
-            var exchangeService = ConnectionFactory.GetConnection(credentials);
-            var postProcessor = GetPostProcesor(emailSettings, exchangeService);
+            var exchangeService = _connectionManger.GetConnection(credentials);
+            var postProcessor = GetPostProcesor(emailSettings, exchangeService.Service);
 
             switch (emailSettings.ServiceType)
             {
                 case Config.EmailSettings.MailboxServiceType.EWSByFolder:
                     return new FolderMailboxManager(
-                        exchangeService, 
+                        exchangeService.Service, 
                         emailSettings.IncomingFolder,
                         postProcessor);
 
                 case Config.EmailSettings.MailboxServiceType.EWSByRecipients:
+
                     return new RecipientsMailboxManager(
-                        exchangeService,
+                        exchangeService.Router,
                         ParseDelimitedList(emailSettings.Recipients, ';'),
                         postProcessor);
 
@@ -59,13 +65,13 @@ namespace Mail2Bug.Email
         {
             if (string.IsNullOrEmpty(text))
             {
-                return new List<string>();
+                return new string[0];
             }
 
             return text.Split(delimiter);
         }
 
         // Enable connection caching for performance improvement when hosting multiple instances
-        private static readonly EWSConnectionFactory ConnectionFactory = new EWSConnectionFactory(true);
+        private readonly EWSConnectionManger _connectionManger;
     }
 }

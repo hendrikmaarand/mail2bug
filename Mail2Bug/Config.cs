@@ -64,25 +64,40 @@ namespace Mail2Bug
 			        return TFSQueryParser.ParseQueryFile(FileToString(CacheQueryFile));
 			    }
 			}
+
+		    public string OAuthContext { get; set; }
+		    public string OAuthResourceId { get; set; }
+		    public string OAuthClientId { get; set; }
 		}
 
 		public class WorkItemSettings
 		{
+            // C'tor for assignign defaults
+            public WorkItemSettings()
+		    {
+		        OverrideChangedBy = true;
+		        ApplyOverridesDuringUpdate = true;
+		        AttachOriginalMessage = true;
+                AttachUpdateMessages = false;
+		    }
+
             public enum ProcessingStrategyType
             {
-                SimpleBugStrategy,
-                UpdateItemMetadataStrategy
+                SimpleBugStrategy
             }
 
 			public string ConversationIndexFieldName { get; set; }
 			public List<DefaultValueDefinition> DefaultFieldValues { get; set; }
             public List<MnemonicDefinition> Mnemonics { get; set; }
             public List<RecipientOverrideDefinition> RecipientOverrides { get; set; }
-            public List<DateBasedFieldOverrides> DateBasedOverrides { get; set; } 
+            public List<DateBasedFieldOverrides> DateBasedOverrides { get; set; }
 
+            public bool OverrideChangedBy { get; set; }
+            public bool ApplyOverridesDuringUpdate { get; set; }
             public bool AttachOriginalMessage { get; set; }
+		    public bool AttachUpdateMessages { get; set; }
 
-            public ProcessingStrategyType ProcessingStrategy = ProcessingStrategyType.SimpleBugStrategy;
+		    public ProcessingStrategyType ProcessingStrategy = ProcessingStrategyType.SimpleBugStrategy;
 		}
 
 		public class DefaultValueDefinition

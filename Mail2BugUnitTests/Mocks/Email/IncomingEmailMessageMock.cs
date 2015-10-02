@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using log4net;
+using Mail2Bug.Email;
 using Mail2Bug.TestHelpers;
 
-namespace Mail2Bug.Email.Mocks
+namespace Mail2BugUnitTests.Mocks.Email
 {
     public class IncomingEmailMessageMock : IIncomingEmailMessage
     {
@@ -41,9 +43,12 @@ namespace Mail2Bug.Email.Mocks
                     SenderAlias = RandomDataHelper.GetAlias(_seed++)
                 };
             mock.SenderAddress = mock.SenderAlias + "@blah.com";
-            mock.To = GetRandomAliasList(Rand.Next(1, 30));
-            mock.Cc = GetRandomAliasList(Rand.Next(0, 30));
+            mock.ToAddresses = GetRandomAliasList(Rand.Next(1, 30));
+            mock.CcAddresses = GetRandomAliasList(Rand.Next(0, 30));
+            mock.ToNames = GetRandomNamesList(mock.ToAddresses.Count());
+            mock.CcNames = GetRandomNamesList(mock.CcAddresses.Count());
             mock.SentOn = new DateTime(Rand.Next(2012, 2525), Rand.Next(1, 12), Rand.Next(1, 28));
+            mock.ReceivedOn = new DateTime(Rand.Next(2012, 2525), Rand.Next(1, 12), Rand.Next(1, 28));
             mock.IsHtmlBody = Rand.Next(0, 1) == 0;
 
             var attachments = new List<IIncomingEmailAttachment>(numAttachments);
@@ -65,9 +70,12 @@ namespace Mail2Bug.Email.Mocks
         public string SenderName { get; set; }
         public string SenderAlias { get; set; }
         public string SenderAddress { get; private set; }
-        public IEnumerable<string> To { get; set; }
-        public IEnumerable<string> Cc { get; set; }
+        public IEnumerable<string> ToAddresses { get; set; }
+        public IEnumerable<string> CcAddresses { get; set; }
+        public IEnumerable<string> ToNames { get; set; }
+        public IEnumerable<string> CcNames { get; set; }
         public DateTime SentOn { get; set; }
+        public DateTime ReceivedOn { get; set; }
         public bool IsHtmlBody { get; set; }
         public string Location { get; set; }
         public DateTime? StartTime { get; set; }
@@ -121,7 +129,7 @@ namespace Mail2Bug.Email.Mocks
 
         #region Random Generation
 
-        private static readonly Random Rand = new Random();
+        private static readonly Random Rand;
         private static int _seed;
 
         private const string EmailSuffix = "@blah.com";
@@ -140,6 +148,22 @@ namespace Mail2Bug.Email.Mocks
             }
 
             return aliases;
+        }
+
+        private static IEnumerable<string> GetRandomNamesList(int numNames)
+        {
+            if (numNames == 0)
+            {
+                return new List<string>();
+            }
+
+            var names = new List<string>(numNames);
+            for (var i = 0; i < numNames; ++i)
+            {
+                names.Add(RandomDataHelper.GetName(_seed++));
+            }
+
+            return names;
         }
 
         #endregion

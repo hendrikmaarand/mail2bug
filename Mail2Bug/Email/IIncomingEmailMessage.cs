@@ -21,9 +21,12 @@ namespace Mail2Bug.Email
         string SenderName { get; }
         string SenderAlias { get; }
         string SenderAddress { get; }
-        IEnumerable<string> To { get; }
-        IEnumerable<string> Cc { get; }
+        IEnumerable<string> ToAddresses { get; }
+        IEnumerable<string> CcAddresses { get; }
+        IEnumerable<string> ToNames { get; }
+        IEnumerable<string> CcNames { get; }
         DateTime SentOn { get; }
+        DateTime ReceivedOn { get; }
 
         bool IsHtmlBody { get; }
 
